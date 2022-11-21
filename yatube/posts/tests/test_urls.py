@@ -42,6 +42,7 @@ class StaticURLTests(TestCase):
             with self.subTest(adress=adress):
                 response = self.authorized_client.get(adress)
                 error_name: str = f'Ошибка: {adress} ожидал шаблон {template}'
+                self.assertTemplateUsed(self.authorized_client.get('/'), 'posts/index.html')
                 self.assertTemplateUsed(response, template, error_name)
 
     def test_guest_client_urls_status_200(self):
