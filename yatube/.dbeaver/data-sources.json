@@ -1,0 +1,46 @@
+{
+	"folders": {},
+	"connections": {
+		"sqlite_jdbc-1849fd3ed77-51b2bc80d8e3cc0a": {
+			"provider": "sqlite",
+			"driver": "sqlite_jdbc",
+			"name": "db.sqlite3",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"database": "D:\\Dev\\hw05_final\\yatube\\db.sqlite3",
+				"url": "jdbc:sqlite:D:\\Dev\\hw05_final\\yatube\\db.sqlite3",
+				"configurationType": "MANUAL",
+				"type": "dev",
+				"auth-model": "native",
+				"handlers": {}
+			}
+		},
+		"sqlite_jdbc-1849fe8cfe1-2b21630495c500a5": {
+			"provider": "sqlite",
+			"driver": "sqlite_jdbc",
+			"name": "db.sqlite3 2",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"database": "D:\\Dev\\hw05_final\\yatube\\db.sqlite3",
+				"url": "jdbc:sqlite:D:\\Dev\\hw05_final\\yatube\\db.sqlite3",
+				"configurationType": "MANUAL",
+				"type": "dev",
+				"auth-model": "native",
+				"handlers": {}
+			}
+		}
+	},
+	"connection-types": {
+		"dev": {
+			"name": "Разработка",
+			"color": "255,255,255",
+			"description": "База данных для разработки",
+			"auto-commit": true,
+			"confirm-execute": false,
+			"confirm-data-change": false,
+			"auto-close-transactions": false
+		}
+	}
+}

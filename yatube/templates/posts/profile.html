@@ -1,12 +1,16 @@
 {% extends 'base.html' %}
 {% block title %}
-Профайл пользователя {{author.first_name}} {{author.last_name}}
+Профайл пользователя {{ author.first_name }} {{ author.last_name }}
 {% endblock %}
 {% block content %}
 {% load static %}
-        <div class="mb-5"
-          <h1>Все посты пользователя {{author.first_name}} {{author.last_name}} </h1>
+        <div class="mb-5">
+          <h1>Все посты пользователя {{ author.first_name }} {{ author.last_name }}</h1>
           <h3>Всего постов: {{ author.posts.count }}</h3>
+          <h3>Подписок: {{ author.follower.count }}</h3>
+          <h3>Подписчиков: {{ author.following.count }}</h3>
+        {% if author != request.user %}  
+        {% if user.is_authenticated %}  
         {% if following %}
           <a
             class="btn btn-lg btn-light"
@@ -22,26 +26,11 @@
             Подписаться
           </a>
         {% endif %}
+        {% endif %}
+        {% endif %}
         </div>
         {% for post in page_obj %}
-          <article>
-            <ul>
-              <li>
-                Автор: {{ post.author.get_full_name }}
-                <a href="{% url 'posts:profile' post.author.username %}">все посты пользователя</a>
-              </li>
-              <li>
-                Дата публикации: {{ post.pub_date|date:"d E Y" }}
-              </li>
-            </ul>
-            {% include "posts/includes/thumbnail_images.html" %}
-            <p>
-              {{ post.text|linebreaks }}
-            </p>
-            {% if post.group %}    
-              <a href="{% url 'posts:group_posts' post.group.slug %}">все записи группы</a>
-            {% endif %}  
-          </article>    
+        {% include 'posts/includes/post_card.html' %}  
         {% if not forloop.last %}<hr>{% endif %}
         {% endfor %}
         {% include 'posts/includes/paginator.html' %} 
