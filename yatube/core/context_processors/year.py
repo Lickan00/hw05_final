@@ -3,8 +3,8 @@ from datetime import date
 
 def year(request):
     """Добавляет переменную с текущим годом."""
-    current_date = date.today().year
+    current_year = date.today().year
 
     return {
-        'year': current_date,
+        'year': current_year,
     }
