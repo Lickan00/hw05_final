@@ -23,17 +23,35 @@ class PostCreateFormTests(TestCase):
             slug='tests_group',
         )
 
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
     def setUp(self):
         self.authorized_client = Client()
         self.authorized_client.force_login(PostCreateFormTests.user)
 
     def test_create_post(self):
         """Проверка создания поста c редиректорм в профиль юзера"""
-        post_count = Post.objects.count()
         before_create = set(Post.objects.all())
+        image_bytes_literals = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='small.jpeg',
+            content=image_bytes_literals,
+            content_type='image/jpeg'
+        )
         form_data = {
             'group': PostCreateFormTests.group_1.pk,
             'text': 'Тестовый текст',
+            'image': uploaded
         }
         response = self.authorized_client.post(
             reverse('posts:post_create'),
@@ -43,12 +61,15 @@ class PostCreateFormTests(TestCase):
         self.assertRedirects(response, reverse(
             'posts:profile', kwargs={'username': PostCreateFormTests.user}
         ))
-        self.assertEqual(Post.objects.count(), post_count + 1)
         after_create = set(Post.objects.all())
         self.assertEqual(len(after_create - before_create), 1)
         objects_after_create = after_create.pop()
         self.assertEqual(objects_after_create.text, form_data['text'])
         self.assertEqual(objects_after_create.group.pk, form_data['group'])
+        self.assertEqual(
+            objects_after_create.image,
+            f'posts/{form_data["image"].name}'
+        )
         self.assertEqual(objects_after_create.author, self.user)
 
     def test_edit_post(self):
@@ -57,9 +78,23 @@ class PostCreateFormTests(TestCase):
             author=PostCreateFormTests.user,
             text='Тестовый текст',
         )
+        image_bytes_literals = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        uploaded = SimpleUploadedFile(
+            name='big.jpeg',
+            content=image_bytes_literals,
+            content_type='image/jpeg'
+        )
         form_data = {
             'group': PostCreateFormTests.group_1.pk,
             'text': 'Тестовый текст отредактирован',
+            'image': uploaded
         }
         response = self.authorized_client.post(
             reverse('posts:post_edit', kwargs={'post_id': post.pk}),
@@ -72,7 +107,8 @@ class PostCreateFormTests(TestCase):
                         text=form_data['text'],
                         author=PostCreateFormTests.user,
                         group=form_data['group'],
-                        id=post.pk
+                        id=post.pk,
+                        image=f'posts/{form_data["image"].name}'
                         ), error_name_one)
 
     def test_create_comment_authorized_user(self):
@@ -116,49 +152,3 @@ class PostCreateFormTests(TestCase):
         )
         after_create = set(Comment.objects.all())
         self.assertEqual(len(after_create - before_create), 0)
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
-
-    def test_create_post_with_a_picture(self):
-        """Проверка создания поста c картинкой + редирект"""
-        post_count = Post.objects.count()
-        before_create = set(Post.objects.all())
-        image_bytes_literals = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-        uploaded = SimpleUploadedFile(
-            name='small.jpeg',
-            content=image_bytes_literals,
-            content_type='image/jpeg'
-        )
-        form_data = {
-            'group': PostCreateFormTests.group_1.pk,
-            'text': 'Тестовый текст с картинкой',
-            'image': uploaded
-        }
-        response = self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True
-        )
-        self.assertEqual(Post.objects.count(), post_count + 1)
-        self.assertRedirects(response, reverse(
-            'posts:profile', kwargs={'username': PostCreateFormTests.user}
-        ))
-        after_create = set(Post.objects.all())
-        self.assertEqual(len(after_create - before_create), 1)
-        objects_after_create = after_create.pop()
-        self.assertEqual(objects_after_create.text, form_data['text'])
-        self.assertEqual(objects_after_create.group.pk, form_data['group'])
-        self.assertEqual(
-            objects_after_create.image,
-            f'posts/{form_data["image"].name}'
-        )
