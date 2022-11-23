@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from ..models import User, Post, Group, Comment, Follow
 from ..constants import POSTS_PER_PAGE, POSTS_FOR_BULK_CREATE
+from ..forms import CommentForm
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
@@ -30,16 +31,49 @@ class ViewsTest(TestCase):
         )
         cls.user = User.objects.create_user(username='DimaB')
         cls.user_2 = User.objects.create_user(username='Yuliya')
+        cls.image_bytes_literals = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.jpeg',
+            content=cls.image_bytes_literals,
+            content_type='image/jpeg'
+        )
         cls.post = Post.objects.create(
             author=cls.user,
             text='Тестовый текст',
             group=cls.group,
+            image=cls.uploaded
         )
         cls.comment = Comment.objects.create(
             post_id=cls.post.id,
             author=cls.user,
             text='Тестовый комментарий',
         )
+        # cls.image_bytes_literals = (
+        #     b'\x47\x49\x46\x38\x39\x61\x02\x00'
+        #     b'\x01\x00\x80\x00\x00\x00\x00\x00'
+        #     b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+        #     b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+        #     b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+        #     b'\x0A\x00\x3B'
+        # )
+        # cls.uploaded = SimpleUploadedFile(
+        #     name='small.jpeg',
+        #     content=cls.image_bytes_literals,
+        #     content_type='image/jpeg'
+        # )
+        # cls.test_post = Post.objects.create(
+        #     author=cls.user,
+        #     text='Текст c картинкой',
+        #     group=cls.group,
+        #     image=cls.uploaded
+        # )
 
     def setUp(self):
         self.authorized_client = Client()
@@ -71,15 +105,21 @@ class ViewsTest(TestCase):
                 response = self.authorized_client.get(reverse_name)
                 self.assertTemplateUsed(response, template)
 
-    def test_index_show_correct_context(self):
-        """Шаблон group_posts сформирован с правильным контекстом."""
-        response = self.client.get(reverse('posts:index'))
-        first_object = response.context['page_obj'][0]
+    def assert_method_for_tests_first_object(self, first_object):
+        """Проверки для first_object"""
         self.assertEqual(first_object, self.post)
         self.assertEqual(first_object.pk, self.post.pk)
         self.assertEqual(first_object.text, self.post.text)
         self.assertEqual(first_object.group.id, self.group.pk)
         self.assertEqual(first_object.pub_date, self.post.pub_date)
+        self.assertEqual(first_object.image, self.post.image)
+        self.assertEqual(first_object.author.username, self.user.username)
+
+    def test_index_show_correct_context(self):
+        """Шаблон group_posts сформирован с правильным контекстом."""
+        response = self.client.get(reverse('posts:index'))
+        first_object = response.context['page_obj'][0]
+        self.assert_method_for_tests_first_object(first_object)
 
     def test_group_posts_show_correct_context(self):
         """Шаблон group_posts сформирован с правильным контекстом."""
@@ -87,41 +127,32 @@ class ViewsTest(TestCase):
             'posts:group_posts', kwargs={'slug': self.group.slug}
         ))
         first_object = response.context['page_obj'][0]
+        self.assert_method_for_tests_first_object(first_object)
         second_object = response.context['group']
-        self.assertEqual(first_object.pk, self.post.pk)
-        self.assertEqual(first_object.text, self.post.text)
-        self.assertEqual(first_object.group.id, self.group.pk)
-        self.assertEqual(first_object.author.username, self.user.username)
         self.assertEqual(second_object.id, self.group.pk)
         self.assertEqual(second_object.title, self.group.title)
 
     def test_profile_show_correct_context(self):
         """Шаблон profile сформирован с правильным контекстом."""
-        response = self.client.get(
+        response = self.authorized_client.get(
             reverse('posts:profile', kwargs={'username': self.user})
         )
         first_object = response.context['posts'][0]
-        second_object = response.context['author']
-        self.assertEqual(first_object.pk, self.post.pk)
-        self.assertEqual(first_object.text, self.post.text)
-        self.assertEqual(first_object.group.id, self.group.pk)
-        self.assertEqual(first_object.author.username, self.user.username)
-        self.assertEqual(second_object, self.user)
-        self.assertEqual(second_object.id, self.user.pk)
+        self.assert_method_for_tests_first_object(first_object)
+        author_object = response.context['author']
+        self.assertEqual(author_object, self.user)
+        self.assertEqual(author_object.id, self.user.pk)
+        following_object = response.context['following']
+        self.assertFalse(following_object)
 
     def test_post_detail_show_correct_context(self):
         """Шаблон post_detail сформирован с правильным контекстом."""
         response = self.client.get(
             reverse('posts:post_detail', kwargs={'post_id': self.post.pk})
         )
-        post_object = response.context['post']
-        self.assertEqual(post_object, self.post)
-        self.assertEqual(post_object.pk, self.post.pk)
-        self.assertEqual(post_object.text, self.post.text)
-        self.assertEqual(post_object.pub_date, self.post.pub_date)
-        self.assertEqual(
-            post_object.author.username, self.user.username
-        )
+        first_object = response.context['post']
+        self.assert_method_for_tests_first_object(first_object)
+        self.assertIsInstance(response.context.get('form'), CommentForm)
         comments_object = response.context['comments'][0]
         self.assertEqual(comments_object.pk, self.comment.pk)
 
@@ -149,12 +180,9 @@ class ViewsTest(TestCase):
         for value, expected in form_fields.items():
             with self.subTest(value=value):
                 post_object = response.context['post']
+                self.assert_method_for_tests_first_object(post_object)
                 form_field = response.context.get('form').fields.get(value)
                 self.assertIsInstance(form_field, expected)
-                self.assertEquals(post_object.author, self.user)
-                self.assertEquals(post_object.pk, self.post.pk)
-                self.assertEquals(post_object.text, self.post.text)
-                self.assertEquals(post_object.group, self.post.group)
 
     def test_post_create_displayed_on_expected_pages(self):
         """Если при создании поста указать группу, то этот пост появляется"""
@@ -183,30 +211,48 @@ class ViewsTest(TestCase):
     def test_post_added_correctly_group(self):
         """"Проверка что пост не попал в группу,
         для которой не был предназначен"""
-        posts_count = Post.objects.filter(group=self.group_2).count()
-        self.assertEqual(posts_count, 0, 'пост найден в другой группе')
+        post_two = Post.objects.create(
+            author=self.user,
+            text='Текст для added correctly group',
+            group=self.group_2,
+        )
+        response = self.authorized_client.get(reverse(
+            'posts:group_posts', kwargs={'slug': self.group.slug}
+        ))
+        first_object = response.context['page_obj'][0]
+        self.assertNotEqual(
+            first_object.pk,
+            post_two.pk,
+            'Пост найден в некорректной группе')
 
-    def test_follow_and_unfollow(self):
+    def test_follow(self):
         """Авторизованный пользователь может подписываться
-        на других пользователей и удалять их из подписок"""
+        на других пользователей"""
         error_one = 'В БД найден объект которого не должно быть'
         self.assertFalse(Follow.objects.filter(
             user=self.user_2, author=self.user
-        ), error_one)
+        ).exists(), error_one)
         self.authorized_client_two.get(reverse(
             'posts:profile_follow', kwargs={'username': self.user.username}
         ))
         error_two = 'В БД не найден ожидаемый объект'
         self.assertTrue(Follow.objects.filter(
             user=self.user_2, author=self.user
-        ), error_two)
+        ).exists(), error_two)
+
+    def test_unfollow(self):
+        """Авторизованный пользователь может удалять
+        других пользователей из своих подписок"""
+        self.authorized_client_two.get(reverse(
+            'posts:profile_follow', kwargs={'username': self.user.username}
+        ))
         self.authorized_client_two.get(reverse(
             'posts:profile_unfollow', kwargs={'username': self.user.username}
         ))
-        error_three = 'Из БД не был удален ожидаемый объект'
+        error_one = 'Из БД не был удален ожидаемый объект'
         self.assertFalse(Follow.objects.filter(
             user=self.user_2, author=self.user
-        ), error_three)
+        ).exists(), error_one)
 
     def test_follow_displayed_on_expected_pages(self):
         """Новая запись пользователя появляется в ленте тех,
@@ -231,52 +277,33 @@ class ViewsTest(TestCase):
         )
         self.assertEqual(len(response_user_one.context['page_obj']), 0)
 
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
-
     def test_index_show_correct_context_with_a_picture(self):
         """При выводе страницы с картинкой,
         изображение передаётся в словаре context"""
         cache.clear()
-        image_bytes_literals = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-        uploaded = SimpleUploadedFile(
-            name='small.jpeg',
-            content=image_bytes_literals,
-            content_type='image/jpeg'
-        )
-        post_two = Post.objects.create(
-            author=ViewsTest.user,
-            text='Текст c картинкой',
-            group=ViewsTest.group,
-            image=uploaded
-        )
         reverse_objects = (
             reverse('posts:index'),
-            reverse('posts:group_posts', kwargs={'slug': post_two.group.slug}),
-            reverse('posts:profile', kwargs={'username': post_two.author})
+            reverse(
+                'posts:group_posts', kwargs={'slug': self.post.group.slug}
+            ),
+            reverse('posts:profile', kwargs={'username': self.post.author})
         )
         for reverse_object in reverse_objects:
             with self.subTest(reverse=reverse):
                 response = self.client.get(reverse_object)
                 first_object = response.context['page_obj'][0]
-                self.assertEqual(first_object.pk, post_two.pk)
-                self.assertEqual(first_object.text, post_two.text)
-                self.assertEqual(first_object.image, post_two.image)
-        response_post_detail = self.client.get(
-            reverse('posts:post_detail', kwargs={'post_id': post_two.pk})
-        )
-        first_object = response_post_detail.context['post']
-        self.assertEqual(first_object.pk, post_two.pk)
-        self.assertEqual(first_object.image, post_two.image)
+                self.assert_method_for_tests_first_object(first_object)
+        response_post_detail = self.client.get(reverse(
+            'posts:post_detail', kwargs={'post_id': self.post.pk}
+        ))
+        post_object = response_post_detail.context['post']
+        self.assertEqual(post_object.pk, self.post.pk)
+        self.assertEqual(post_object.image, self.post.image)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
 
 class PaginatorViewsTest(TestCase):
