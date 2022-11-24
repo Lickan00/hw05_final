@@ -11,7 +11,7 @@
   {% include "posts/includes/thumbnail_images.html" %}
   <p>{{ post.text|linebreaks }}</p>        
   <a href="{% url 'posts:post_detail' post.pk %}">подробная информация</a><br>
-  {% if post.group %}
+  {% if post.group and not group %}
   <a href="{% url 'posts:group_posts' post.group.slug %}">все записи группы</a>
   {% endif %}
 </article>
