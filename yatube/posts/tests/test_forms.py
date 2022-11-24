@@ -134,6 +134,7 @@ class PostCreateFormTests(TestCase):
         objects_after_create = after_create.pop()
         self.assertEqual(objects_after_create.text, form_data['text'])
         self.assertEqual(objects_after_create.author, self.user)
+        self.assertEqual(objects_after_create.post.pk, post.pk)
 
     def test_create_comment_guest_user(self):
         """"Проверяем что комментарий не создастся, без авторизации"""
