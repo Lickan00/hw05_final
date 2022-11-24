@@ -1,7 +1,6 @@
 import shutil
 import tempfile
 
-from django import forms
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,7 +9,7 @@ from django.urls import reverse
 
 from ..models import User, Post, Group, Comment, Follow
 from ..constants import POSTS_PER_PAGE, POSTS_FOR_BULK_CREATE
-from ..forms import CommentForm
+from ..forms import CommentForm, PostForm
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
@@ -55,31 +54,27 @@ class ViewsTest(TestCase):
             author=cls.user,
             text='Тестовый комментарий',
         )
-        # cls.image_bytes_literals = (
-        #     b'\x47\x49\x46\x38\x39\x61\x02\x00'
-        #     b'\x01\x00\x80\x00\x00\x00\x00\x00'
-        #     b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-        #     b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-        #     b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-        #     b'\x0A\x00\x3B'
-        # )
-        # cls.uploaded = SimpleUploadedFile(
-        #     name='small.jpeg',
-        #     content=cls.image_bytes_literals,
-        #     content_type='image/jpeg'
-        # )
-        # cls.test_post = Post.objects.create(
-        #     author=cls.user,
-        #     text='Текст c картинкой',
-        #     group=cls.group,
-        #     image=cls.uploaded
-        # )
 
     def setUp(self):
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
         self.authorized_client_two = Client()
         self.authorized_client_two.force_login(self.user_2)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def assert_method_for_tests_first_object(self, first_object):
+        """Проверки для first_object"""
+        self.assertEqual(first_object, self.post)
+        self.assertEqual(first_object.pk, self.post.pk)
+        self.assertEqual(first_object.text, self.post.text)
+        self.assertEqual(first_object.group.id, self.group.pk)
+        self.assertEqual(first_object.pub_date, self.post.pub_date)
+        self.assertEqual(first_object.image, self.post.image)
+        self.assertEqual(first_object.author.username, self.user.username)
 
     def test_pages_uses_correct_template(self):
         """URL-адрес использует соответствующий шаблон."""
@@ -104,16 +99,6 @@ class ViewsTest(TestCase):
             with self.subTest(template=template):
                 response = self.authorized_client.get(reverse_name)
                 self.assertTemplateUsed(response, template)
-
-    def assert_method_for_tests_first_object(self, first_object):
-        """Проверки для first_object"""
-        self.assertEqual(first_object, self.post)
-        self.assertEqual(first_object.pk, self.post.pk)
-        self.assertEqual(first_object.text, self.post.text)
-        self.assertEqual(first_object.group.id, self.group.pk)
-        self.assertEqual(first_object.pub_date, self.post.pub_date)
-        self.assertEqual(first_object.image, self.post.image)
-        self.assertEqual(first_object.author.username, self.user.username)
 
     def test_index_show_correct_context(self):
         """Шаблон group_posts сформирован с правильным контекстом."""
@@ -159,30 +144,16 @@ class ViewsTest(TestCase):
     def test_post_create_show_correct_context(self):
         """Шаблон post_create сформирован с правильным контекстом."""
         response = self.authorized_client.get(reverse('posts:post_create'))
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField,
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
+        self.assertIsInstance(response.context.get('form'), PostForm)
 
     def test_post_edit_show_correct_context(self):
         """Шаблон post_edit сформирован с правильным контекстом."""
         response = self.authorized_client.get(
             reverse('posts:post_edit', kwargs={'post_id': self.post.pk})
         )
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField,
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                post_object = response.context['post']
-                self.assert_method_for_tests_first_object(post_object)
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
+        post_object = response.context['post']
+        self.assert_method_for_tests_first_object(post_object)
+        self.assertIsInstance(response.context.get('form'), PostForm)
 
     def test_post_create_displayed_on_expected_pages(self):
         """Если при создании поста указать группу, то этот пост появляется"""
@@ -243,9 +214,10 @@ class ViewsTest(TestCase):
     def test_unfollow(self):
         """Авторизованный пользователь может удалять
         других пользователей из своих подписок"""
-        self.authorized_client_two.get(reverse(
-            'posts:profile_follow', kwargs={'username': self.user.username}
-        ))
+        Follow.objects.create(
+            user=self.user_2,
+            author=self.user
+        )
         self.authorized_client_two.get(reverse(
             'posts:profile_unfollow', kwargs={'username': self.user.username}
         ))
@@ -271,39 +243,13 @@ class ViewsTest(TestCase):
         first_object = response_user_two.context['page_obj'][0]
         error = f'Нового поста нет на странице follow у {self.user_2}'
         self.assertEqual(first_object.pk, new_post.pk, error)
-        self.assertEqual(len(response_user_two.context['page_obj']), 2)
         response_user_one = self.authorized_client.get(reverse(
             'posts:follow_index')
         )
-        self.assertEqual(len(response_user_one.context['page_obj']), 0)
-
-    def test_index_show_correct_context_with_a_picture(self):
-        """При выводе страницы с картинкой,
-        изображение передаётся в словаре context"""
-        cache.clear()
-        reverse_objects = (
-            reverse('posts:index'),
-            reverse(
-                'posts:group_posts', kwargs={'slug': self.post.group.slug}
-            ),
-            reverse('posts:profile', kwargs={'username': self.post.author})
+        error_two = f'Пост найден на странице follow у {self.user}'
+        self.assertNotEqual(
+            response_user_one.context['page_obj'], new_post.pk, error_two
         )
-        for reverse_object in reverse_objects:
-            with self.subTest(reverse=reverse):
-                response = self.client.get(reverse_object)
-                first_object = response.context['page_obj'][0]
-                self.assert_method_for_tests_first_object(first_object)
-        response_post_detail = self.client.get(reverse(
-            'posts:post_detail', kwargs={'post_id': self.post.pk}
-        ))
-        post_object = response_post_detail.context['post']
-        self.assertEqual(post_object.pk, self.post.pk)
-        self.assertEqual(post_object.image, self.post.image)
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
 
 class PaginatorViewsTest(TestCase):
@@ -342,16 +288,15 @@ class PaginatorViewsTest(TestCase):
             with self.subTest(page=page):
                 first_page_response = self.client.get(page)
                 second_page_response = self.client.get(page + '?page=2')
-                error_response = f'Страница {page}, не прошла тест'
                 self.assertEqual(
                     len(first_page_response.context['page_obj']),
                     POSTS_PER_PAGE,
-                    error_response
+                    f'Страница {page}, не прошла проверку 1ой страницы'
                 )
                 self.assertEqual(
                     len(second_page_response.context['page_obj']),
                     (POSTS_FOR_BULK_CREATE - POSTS_PER_PAGE),
-                    error_response
+                    f'Страница {page}, не прошла проверку 2ой страницы'
                 )
 
 
@@ -374,4 +319,4 @@ class CacheTests(TestCase):
         self.assertEqual(after_delete, before_delete)
         cache.clear()
         after_clear_cache = self.client.get(reverse('posts:index'))
-        self.assertIsNot(after_clear_cache.content, after_delete)
+        self.assertNotEqual(after_clear_cache.content, after_delete)

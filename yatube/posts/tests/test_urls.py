@@ -81,13 +81,18 @@ class StaticURLTests(TestCase):
                 )
 
     def test_urls_redirect_guest_client(self):
+        """Проверяем редирект guest user"""
+        redirect_1 = reverse("users:login") + '?next=' + reverse(
+            "posts:post_edit", kwargs={"post_id": self.post.pk}
+        )
+        redirect_2 = reverse("users:login") + '?next=' + reverse(
+            "posts:post_create"
+        )
         urls = {
             f'/posts/{self.post.pk}/edit/':
-                f'''{reverse("users:login")}?next={reverse("posts:post_edit",
-                    kwargs={"post_id": self.post.pk})}''',
+                redirect_1,
             '/create/':
-                f'''{reverse("users:login")}?next={reverse(
-                    "posts:post_create")}''',
+                redirect_2,
         }
         for page, value in urls.items():
             with self.subTest(page=page):
@@ -95,19 +100,24 @@ class StaticURLTests(TestCase):
                 self.assertRedirects(response_client, value)
 
     def test_urls_redirect_user_two_edit_someone_post(self):
+        """Проверка редиректа при рекдактировании
+        чужого поста другим юзером"""
         response = self.authorized_client_two.get(
             f'/posts/{self.post.pk}/edit/'
         )
         self.assertRedirects(response, f'/posts/{self.post.pk}/')
 
     def test_edit_post_author(self):
+        """Проверка открытия страницы редактирования своего поста"""
         response = self.authorized_client.get(f'/posts/{self.post.pk}/edit/')
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_create_post_authorized(self):
+        """Проверка открытия страницы создания поста"""
         response = self.authorized_client.get('/create/')
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_404_page(self):
+        """Проверка открытия страницы 404"""
         response = self.client.get('/unexisting_page/')
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
