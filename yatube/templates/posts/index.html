@@ -4,7 +4,7 @@
 {% endblock %}
 {% block content %}
   <h1>Последние обновления на сайте</h1>
-    {% include 'posts/includes/switcher.html' %}
+    {% include 'posts/includes/switcher.html' with index=True %}
     {% for post in page_obj %}
     {% include 'posts/includes/post_card.html' %}
     {% if not forloop.last %}<hr>{% endif %}    

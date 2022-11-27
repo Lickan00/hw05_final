@@ -16,7 +16,7 @@ class PostModelTest(TestCase):
         )
         cls.post = Post.objects.create(
             author=cls.user,
-            text='Тестовый пост',
+            text='Для проверки нам нужно более 15 символов.',
         )
 
     def test_models_have_correct_object_names(self):

@@ -10,9 +10,10 @@ from .utils import get_page_context
 @cache_page(20, key_prefix='index_page')
 def index(request):
     """Вью для вывода главной страницы с помощью генерации модели Post"""
-    context = {'index': 'index'}
-    context.update(get_page_context(Post.objects.all(), request))
-
+    #context = {'index': True}
+    context = get_page_context(Post.objects.all(), request)
+    #context.update(get_page_context(Post.objects.all(), request))
+    #index = True
     return render(request, 'posts/index.html', context)
 
 
@@ -113,8 +114,7 @@ def add_comment(request, post_id):
 def follow_index(request):
     """"Страница подписок"""
     posts = Post.objects.filter(author__following__user=request.user)
-    context = {'follow': 'follow'}
-    context.update(get_page_context(posts, request))
+    context = get_page_context(posts, request)
 
     return render(request, 'posts/follow.html', context)
 
